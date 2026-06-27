@@ -51,30 +51,37 @@
     }
     #form-overlay.show { display: flex; }
     #form-box {
-      background: #fff; border-radius: 14px; width: 350px; max-width: 94vw;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.3); overflow: hidden;
+      background: #fff; border-radius: 14px; width: 360px; max-width: 94vw;
+      max-height: 92vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.3);
     }
     #form-head {
       background: linear-gradient(135deg, #7b4f1a, #c8922a); color: #fff;
       padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0;
     }
     #form-head h3 { font-size: 14px; font-weight: 600; }
     #form-close { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
     #form-body { padding: 16px 18px; }
     .frow { margin-bottom: 12px; }
-    .frow label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500; }
-    .frow input, .frow textarea {
+    .frow label { display: block; font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500; }
+    .frow input[type=text], .frow textarea {
       width: 100%; border: 1px solid #ddd; border-radius: 7px;
       padding: 8px 10px; font-size: 13px; outline: none; font-family: inherit;
     }
     .frow textarea { height: 70px; resize: none; }
     .frow input:focus, .frow textarea:focus { border-color: #c8922a; }
-    .color-row { display: flex; gap: 10px; margin-top: 4px; }
-    .color-opt {
-      width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
-      border: 3px solid transparent; transition: all .15s;
+    .color-wrap { display: flex; align-items: center; gap: 12px; }
+    .swatch-row { display: flex; gap: 7px; flex-wrap: wrap; }
+    .swatch {
+      width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+      border: 3px solid transparent; transition: all .12s;
     }
-    .color-opt.sel { border-color: #333; transform: scale(1.15); }
+    .swatch.sel { border-color: #333; transform: scale(1.15); }
+    #color-picker {
+      width: 38px; height: 32px; border: 1px solid #ccc; border-radius: 6px;
+      cursor: pointer; padding: 0; background: none;
+    }
+    .tent-preview { display: block; margin: 4px auto 0; }
     .upload-area {
       border: 2px dashed #ddd; border-radius: 8px; padding: 12px;
       text-align: center; cursor: pointer; font-size: 12px; color: #999;
@@ -109,7 +116,7 @@
   <div class="leg"><div class="dot" style="background:#2979a0"></div><span>Has Church / Prayer House</span></div>
   <div class="leg"><div class="dot" style="background:#d4850a"></div><span>Has Believers</span></div>
   <div class="leg"><div class="dot" style="background:#a8bcc8"></div><span>No Believers Yet</span></div>
-  <div class="leg"><span style="font-size:18px">⛺</span><span>Tentmaker</span></div>
+  <div class="leg"><span style="font-size:16px">⛺</span><span>Tentmaker</span></div>
 </div>
 
 <div id="panel">
@@ -140,7 +147,11 @@
       </div>
       <div class="frow">
         <label>Tent color</label>
-        <div class="color-row" id="color-row"></div>
+        <div class="color-wrap">
+          <input type="color" id="color-picker" value="#e07a3e" oninput="onPickColor(this.value)">
+          <div class="swatch-row" id="swatch-row"></div>
+        </div>
+        <div id="tent-preview-box"></div>
       </div>
       <div class="frow">
         <label>Photo (optional)</label>
@@ -176,12 +187,8 @@
   const app = initializeApp(firebaseConfig);
   const db  = getFirestore(app);
 
-  window._db         = db;
-  window._addDoc     = addDoc;
-  window._getDocs    = getDocs;
-  window._deleteDoc  = deleteDoc;
-  window._doc        = doc;
-  window._collection = collection;
+  window._db = db; window._addDoc = addDoc; window._getDocs = getDocs;
+  window._deleteDoc = deleteDoc; window._doc = doc; window._collection = collection;
 
   window.addEventListener('mapReady', async () => {
     try {
@@ -194,81 +201,80 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const DATA = {
-  "Taiwan":                  { year:1926, churches:260, prayer:40,  worship:15,  members:56607, baptisms:0,   preachers:126, cat:1 },
-  "Malaysia":                { year:1927, churches:113, prayer:28,  worship:19,  members:18328, baptisms:204, preachers:44,  cat:1 },
-  "Singapore":               { year:1927, churches:4,   prayer:0,   worship:0,   members:1523,  baptisms:22,  preachers:4,   cat:1 },
-  "Hong Kong S.A.R.":        { year:1929, churches:8,   prayer:0,   worship:0,   members:1566,  baptisms:4,   preachers:3,   cat:1 },
-  "Hong Kong":               { year:1929, churches:8,   prayer:0,   worship:0,   members:1566,  baptisms:4,   preachers:3,   cat:1 },
-  "India":                   { year:1932, churches:17,  prayer:3,   worship:4,   members:1700,  baptisms:0,   preachers:5,   cat:1 },
-  "Indonesia":               { year:1941, churches:29,  prayer:11,  worship:0,   members:6965,  baptisms:89,  preachers:19,  cat:1 },
-  "Japan":                   { year:1946, churches:6,   prayer:1,   worship:0,   members:1222,  baptisms:24,  preachers:4,   cat:1 },
-  "South Korea":             { year:1948, churches:25,  prayer:7,   worship:0,   members:2964,  baptisms:50,  preachers:19,  cat:1 },
-  "Thailand":                { year:1957, churches:3,   prayer:3,   worship:3,   members:333,   baptisms:1,   preachers:0,   cat:1 },
-  "Philippines":             { year:1983, churches:14,  prayer:15,  worship:18,  members:2622,  baptisms:31,  preachers:7,   cat:1 },
-  "Myanmar":                 { year:1992, churches:4,   prayer:0,   worship:0,   members:240,   baptisms:6,   preachers:2,   cat:1 },
-  "United Arab Emirates":    { year:2007, churches:0,   prayer:1,   worship:0,   members:19,    baptisms:0,   preachers:0,   cat:1 },
-  "Australia":               { year:1982, churches:7,   prayer:0,   worship:3,   members:1135,  baptisms:26,  preachers:1,   cat:1 },
-  "New Zealand":             { year:1990, churches:3,   prayer:2,   worship:0,   members:549,   baptisms:12,  preachers:1,   cat:1 },
-  "United States of America":{ year:1969, churches:26,  prayer:2,   worship:0,   members:4194,  baptisms:108, preachers:10,  cat:1 },
-  "United States":           { year:1969, churches:26,  prayer:2,   worship:0,   members:4194,  baptisms:108, preachers:10,  cat:1 },
-  "Canada":                  { year:1971, churches:5,   prayer:2,   worship:0,   members:924,   baptisms:15,  preachers:4,   cat:1 },
-  "Argentina":               { year:1989, churches:1,   prayer:0,   worship:0,   members:461,   baptisms:1,   preachers:0,   cat:1 },
-  "Brazil":                  { year:1996, churches:0,   prayer:2,   worship:0,   members:60,    baptisms:3,   preachers:0,   cat:1 },
-  "Dominican Republic":      { year:1997, churches:0,   prayer:2,   worship:0,   members:74,    baptisms:0,   preachers:0,   cat:1 },
-  "Chile":                   { year:2002, churches:0,   prayer:1,   worship:0,   members:44,    baptisms:0,   preachers:0,   cat:1 },
-  "United Kingdom":          { year:1972, churches:9,   prayer:3,   worship:7,   members:3042,  baptisms:34,  preachers:7,   cat:1 },
-  "France":                  { year:1983, churches:1,   prayer:0,   worship:0,   members:47,    baptisms:0,   preachers:0,   cat:1 },
-  "Germany":                 { year:1985, churches:1,   prayer:2,   worship:0,   members:116,   baptisms:0,   preachers:1,   cat:1 },
-  "Austria":                 { year:1992, churches:0,   prayer:2,   worship:0,   members:27,    baptisms:0,   preachers:0,   cat:1 },
-  "Netherlands":             { year:1992, churches:0,   prayer:1,   worship:0,   members:24,    baptisms:0,   preachers:0,   cat:1 },
-  "Russia":                  { year:1995, churches:1,   prayer:0,   worship:0,   members:65,    baptisms:0,   preachers:0,   cat:1 },
-  "Spain":                   { year:2008, churches:1,   prayer:0,   worship:2,   members:125,   baptisms:0,   preachers:0,   cat:1 },
-  "Italy":                   { year:2009, churches:1,   prayer:1,   worship:0,   members:140,   baptisms:0,   preachers:0,   cat:1 },
-  "Georgia":                 { year:2020, churches:0,   prayer:1,   worship:0,   members:24,    baptisms:0,   preachers:0,   cat:1 },
-  "South Africa":            { year:1997, churches:2,   prayer:0,   worship:1,   members:262,   baptisms:9,   preachers:0,   cat:1 },
-  "Benin":                   { year:1998, churches:2,   prayer:3,   worship:0,   members:100,   baptisms:0,   preachers:0,   cat:1 },
-  "Vietnam":                 { year:1997, churches:0,   prayer:0,   worship:2,   members:11,    baptisms:0,   preachers:0,   cat:2 },
-  "Cambodia":                { year:2006, churches:0,   prayer:0,   worship:34,  members:389,   baptisms:26,  preachers:0,   cat:2 },
-  "Bangladesh":              { year:2022, churches:0,   prayer:0,   worship:2,   members:17,    baptisms:0,   preachers:0,   cat:2 },
-  "Tonga":                   { year:2004, churches:0,   prayer:0,   worship:1,   members:20,    baptisms:0,   preachers:0,   cat:2 },
-  "Papua New Guinea":        { year:2010, churches:0,   prayer:0,   worship:0,   members:20,    baptisms:0,   preachers:0,   cat:2 },
-  "Samoa":                   { year:2011, churches:0,   prayer:0,   worship:1,   members:15,    baptisms:4,   preachers:0,   cat:2 },
-  "Bolivia":                 { year:1996, churches:0,   prayer:0,   worship:1,   members:9,     baptisms:0,   preachers:0,   cat:2 },
-  "Guatemala":               { year:2016, churches:0,   prayer:0,   worship:0,   members:5,     baptisms:0,   preachers:0,   cat:2 },
-  "Ecuador":                 { year:2011, churches:0,   prayer:0,   worship:0,   members:19,    baptisms:0,   preachers:0,   cat:2 },
-  "Mexico":                  { year:2017, churches:0,   prayer:0,   worship:1,   members:20,    baptisms:0,   preachers:0,   cat:2 },
-  "Peru":                    { year:2023, churches:0,   prayer:0,   worship:0,   members:19,    baptisms:0,   preachers:0,   cat:2 },
-  "Belgium":                 { year:1993, churches:0,   prayer:0,   worship:0,   members:6,     baptisms:0,   preachers:0,   cat:2 },
-  "Greece":                  { year:2010, churches:0,   prayer:0,   worship:1,   members:43,    baptisms:0,   preachers:0,   cat:2 },
-  "Hungary":                 { year:2018, churches:0,   prayer:0,   worship:0,   members:35,    baptisms:0,   preachers:0,   cat:2 },
-  "Switzerland":             { year:2019, churches:0,   prayer:0,   worship:0,   members:15,    baptisms:0,   preachers:0,   cat:2 },
-  "Sweden":                  { year:2020, churches:0,   prayer:0,   worship:0,   members:3,     baptisms:0,   preachers:0,   cat:2 },
-  "Denmark":                 { year:2020, churches:0,   prayer:0,   worship:0,   members:16,    baptisms:0,   preachers:0,   cat:2 },
-  "Romania":                 { year:2020, churches:0,   prayer:0,   worship:0,   members:1,     baptisms:0,   preachers:0,   cat:2 },
-  "Portugal":                { year:2025, churches:0,   prayer:0,   worship:0,   members:3,     baptisms:0,   preachers:0,   cat:2 },
-  "China":     { year:1917, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Brunei":    { year:1956, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Fiji":      { year:1994, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Paraguay":  { year:2002, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Nicaragua": { year:2025, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Ireland":   { year:1998, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Nigeria":   { year:1978, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Ghana":     { year:1985, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Kenya":     { year:1995, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Uganda":    { year:2000, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Togo":      { year:2001, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Tanzania":  { year:2005, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "United Republic of Tanzania": { year:2005, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Rwanda":    { year:2007, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Zambia":    { year:2008, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Ethiopia":  { year:2022, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Namibia":   { year:2022, churches:0, prayer:0, worship:0, members:0, cat:3 },
-  "Cameroon":  { year:2022, churches:0, prayer:0, worship:0, members:0, cat:3 },
+  "Taiwan":{year:1926,churches:260,prayer:40,worship:15,members:56607,baptisms:0,preachers:126,cat:1},
+  "Malaysia":{year:1927,churches:113,prayer:28,worship:19,members:18328,baptisms:204,preachers:44,cat:1},
+  "Singapore":{year:1927,churches:4,prayer:0,worship:0,members:1523,baptisms:22,preachers:4,cat:1},
+  "Hong Kong S.A.R.":{year:1929,churches:8,prayer:0,worship:0,members:1566,baptisms:4,preachers:3,cat:1},
+  "Hong Kong":{year:1929,churches:8,prayer:0,worship:0,members:1566,baptisms:4,preachers:3,cat:1},
+  "India":{year:1932,churches:17,prayer:3,worship:4,members:1700,baptisms:0,preachers:5,cat:1},
+  "Indonesia":{year:1941,churches:29,prayer:11,worship:0,members:6965,baptisms:89,preachers:19,cat:1},
+  "Japan":{year:1946,churches:6,prayer:1,worship:0,members:1222,baptisms:24,preachers:4,cat:1},
+  "South Korea":{year:1948,churches:25,prayer:7,worship:0,members:2964,baptisms:50,preachers:19,cat:1},
+  "Thailand":{year:1957,churches:3,prayer:3,worship:3,members:333,baptisms:1,preachers:0,cat:1},
+  "Philippines":{year:1983,churches:14,prayer:15,worship:18,members:2622,baptisms:31,preachers:7,cat:1},
+  "Myanmar":{year:1992,churches:4,prayer:0,worship:0,members:240,baptisms:6,preachers:2,cat:1},
+  "United Arab Emirates":{year:2007,churches:0,prayer:1,worship:0,members:19,baptisms:0,preachers:0,cat:1},
+  "Australia":{year:1982,churches:7,prayer:0,worship:3,members:1135,baptisms:26,preachers:1,cat:1},
+  "New Zealand":{year:1990,churches:3,prayer:2,worship:0,members:549,baptisms:12,preachers:1,cat:1},
+  "United States of America":{year:1969,churches:26,prayer:2,worship:0,members:4194,baptisms:108,preachers:10,cat:1},
+  "United States":{year:1969,churches:26,prayer:2,worship:0,members:4194,baptisms:108,preachers:10,cat:1},
+  "Canada":{year:1971,churches:5,prayer:2,worship:0,members:924,baptisms:15,preachers:4,cat:1},
+  "Argentina":{year:1989,churches:1,prayer:0,worship:0,members:461,baptisms:1,preachers:0,cat:1},
+  "Brazil":{year:1996,churches:0,prayer:2,worship:0,members:60,baptisms:3,preachers:0,cat:1},
+  "Dominican Republic":{year:1997,churches:0,prayer:2,worship:0,members:74,baptisms:0,preachers:0,cat:1},
+  "Chile":{year:2002,churches:0,prayer:1,worship:0,members:44,baptisms:0,preachers:0,cat:1},
+  "United Kingdom":{year:1972,churches:9,prayer:3,worship:7,members:3042,baptisms:34,preachers:7,cat:1},
+  "France":{year:1983,churches:1,prayer:0,worship:0,members:47,baptisms:0,preachers:0,cat:1},
+  "Germany":{year:1985,churches:1,prayer:2,worship:0,members:116,baptisms:0,preachers:1,cat:1},
+  "Austria":{year:1992,churches:0,prayer:2,worship:0,members:27,baptisms:0,preachers:0,cat:1},
+  "Netherlands":{year:1992,churches:0,prayer:1,worship:0,members:24,baptisms:0,preachers:0,cat:1},
+  "Russia":{year:1995,churches:1,prayer:0,worship:0,members:65,baptisms:0,preachers:0,cat:1},
+  "Spain":{year:2008,churches:1,prayer:0,worship:2,members:125,baptisms:0,preachers:0,cat:1},
+  "Italy":{year:2009,churches:1,prayer:1,worship:0,members:140,baptisms:0,preachers:0,cat:1},
+  "Georgia":{year:2020,churches:0,prayer:1,worship:0,members:24,baptisms:0,preachers:0,cat:1},
+  "South Africa":{year:1997,churches:2,prayer:0,worship:1,members:262,baptisms:9,preachers:0,cat:1},
+  "Benin":{year:1998,churches:2,prayer:3,worship:0,members:100,baptisms:0,preachers:0,cat:1},
+  "Vietnam":{year:1997,churches:0,prayer:0,worship:2,members:11,baptisms:0,preachers:0,cat:2},
+  "Cambodia":{year:2006,churches:0,prayer:0,worship:34,members:389,baptisms:26,preachers:0,cat:2},
+  "Bangladesh":{year:2022,churches:0,prayer:0,worship:2,members:17,baptisms:0,preachers:0,cat:2},
+  "Tonga":{year:2004,churches:0,prayer:0,worship:1,members:20,baptisms:0,preachers:0,cat:2},
+  "Papua New Guinea":{year:2010,churches:0,prayer:0,worship:0,members:20,baptisms:0,preachers:0,cat:2},
+  "Samoa":{year:2011,churches:0,prayer:0,worship:1,members:15,baptisms:4,preachers:0,cat:2},
+  "Bolivia":{year:1996,churches:0,prayer:0,worship:1,members:9,baptisms:0,preachers:0,cat:2},
+  "Guatemala":{year:2016,churches:0,prayer:0,worship:0,members:5,baptisms:0,preachers:0,cat:2},
+  "Ecuador":{year:2011,churches:0,prayer:0,worship:0,members:19,baptisms:0,preachers:0,cat:2},
+  "Mexico":{year:2017,churches:0,prayer:0,worship:1,members:20,baptisms:0,preachers:0,cat:2},
+  "Peru":{year:2023,churches:0,prayer:0,worship:0,members:19,baptisms:0,preachers:0,cat:2},
+  "Belgium":{year:1993,churches:0,prayer:0,worship:0,members:6,baptisms:0,preachers:0,cat:2},
+  "Greece":{year:2010,churches:0,prayer:0,worship:1,members:43,baptisms:0,preachers:0,cat:2},
+  "Hungary":{year:2018,churches:0,prayer:0,worship:0,members:35,baptisms:0,preachers:0,cat:2},
+  "Switzerland":{year:2019,churches:0,prayer:0,worship:0,members:15,baptisms:0,preachers:0,cat:2},
+  "Sweden":{year:2020,churches:0,prayer:0,worship:0,members:3,baptisms:0,preachers:0,cat:2},
+  "Denmark":{year:2020,churches:0,prayer:0,worship:0,members:16,baptisms:0,preachers:0,cat:2},
+  "Romania":{year:2020,churches:0,prayer:0,worship:0,members:1,baptisms:0,preachers:0,cat:2},
+  "Portugal":{year:2025,churches:0,prayer:0,worship:0,members:3,baptisms:0,preachers:0,cat:2},
+  "China":{year:1917,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Brunei":{year:1956,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Fiji":{year:1994,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Paraguay":{year:2002,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Nicaragua":{year:2025,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Ireland":{year:1998,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Nigeria":{year:1978,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Ghana":{year:1985,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Kenya":{year:1995,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Uganda":{year:2000,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Togo":{year:2001,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Tanzania":{year:2005,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "United Republic of Tanzania":{year:2005,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Rwanda":{year:2007,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Zambia":{year:2008,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Ethiopia":{year:2022,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Namibia":{year:2022,churches:0,prayer:0,worship:0,members:0,cat:3},
+  "Cameroon":{year:2022,churches:0,prayer:0,worship:0,members:0,cat:3},
 };
 
-// 取国家名：兼容 name / ADMIN / NAME 各种字段
-function getName(feature) {
-  const p = feature.properties || {};
+function getName(f) {
+  const p = f.properties || {};
   return p.name || p.ADMIN || p.NAME || p.admin || p.NAME_LONG || '';
 }
 
@@ -276,30 +282,54 @@ const map = L.map('map').setView([20, 10], 2);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png').addTo(map);
 
 const COLORS = { 1:'#2979a0', 2:'#d4850a', 3:'#a8bcc8', 0:'#dddddd' };
-let geoLayer, tentMode = false, pendingLL = null, pendingImg = null, pendingColor = '#e74c3c';
+let geoLayer, tentMode = false, pendingLL = null, pendingImg = null, pendingColor = '#e07a3e';
 
-// 帐篷颜色选项
-const TENT_COLORS = ['#e74c3c', '#2980b9', '#27ae60', '#c8922a', '#8e44ad'];
+// 预设色板
+const SWATCHES = ['#e07a3e','#2980b9','#27ae60','#c8922a','#e74c3c','#8e44ad','#16a085','#34495e'];
+
+// 颜色加深：把主色按比例调暗，用于明暗面
+function darken(hex, f) {
+  const n = parseInt(hex.slice(1),16);
+  let r = (n>>16)&255, g = (n>>8)&255, b = n&255;
+  r = Math.round(r*(1-f)); g = Math.round(g*(1-f)); b = Math.round(b*(1-f));
+  return '#' + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function lighten(hex, f) {
+  const n = parseInt(hex.slice(1),16);
+  let r = (n>>16)&255, g = (n>>8)&255, b = n&255;
+  r = Math.round(r+(255-r)*f); g = Math.round(g+(255-g)*f); b = Math.round(b+(255-b)*f);
+  return '#' + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+// 生成立体帐篷 SVG（颜色自动算明暗）
+function tentSVG(color, w) {
+  const light = lighten(color, 0.22);
+  const dark  = darken(color, 0.30);
+  const darker= darken(color, 0.45);
+  return `<svg width="${w}" height="${w}" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="30" cy="55" rx="28" ry="4" fill="#000" opacity="0.13"/>
+    <path d="M30 6 L54 53 L6 53 Z" fill="${color}"/>
+    <path d="M30 6 L30 53 L6 53 Z" fill="${light}"/>
+    <path d="M30 6 L54 53 M30 6 L6 53" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M30 23 L43 53 L30 53 Z" fill="${darker}"/>
+    <path d="M30 23 L17 53 L30 53 Z" fill="${dark}"/>
+    <path d="M30 6 L34 13 M30 6 L26 13" stroke="${darker}" stroke-width="2.5" stroke-linecap="round"/>
+  </svg>`;
+}
 
 fetch('https://raw.githubusercontent.com/datasets/geo-countries/main/data/countries.geojson')
   .then(r => r.json())
   .then(data => {
     geoLayer = L.geoJSON(data, {
-      style(feature) {
-        const d = DATA[getName(feature)];
-        const cat = d ? d.cat : 0;
+      style(f) {
+        const d = DATA[getName(f)]; const cat = d ? d.cat : 0;
         return { fillColor: COLORS[cat], fillOpacity: cat===1?.75:cat===2?.70:cat===3?.45:.20, color:'#fff', weight:.7 };
       },
-      onEachFeature(feature, layer) {
+      onEachFeature(f, layer) {
         layer.on({
-          mouseover(e) { if (!tentMode) e.target.setStyle({ weight:2, color:'#c8922a' }); },
-          mouseout(e)  { if (!tentMode) geoLayer.resetStyle(e.target); },
-          click(e) {
-            if (tentMode) return;
-            const name = getName(feature);
-            showPanel(name, DATA[name]);
-            L.DomEvent.stopPropagation(e);
-          }
+          mouseover(e){ if(!tentMode) e.target.setStyle({weight:2,color:'#c8922a'}); },
+          mouseout(e){ if(!tentMode) geoLayer.resetStyle(e.target); },
+          click(e){ if(tentMode) return; const n=getName(f); showPanel(n,DATA[n]); L.DomEvent.stopPropagation(e); }
         });
       }
     }).addTo(map);
@@ -311,15 +341,12 @@ map.on('click', () => { if (!tentMode) closePanel(); });
 function showPanel(name, d) {
   document.getElementById('panel').style.display = 'block';
   document.getElementById('panel-title').textContent = name;
-  if (!d) {
-    document.getElementById('panel-body').innerHTML = '<p style="color:#999;font-size:13px;padding:8px 0">No church records for this country.</p>';
-    return;
-  }
-  const catText = {1:'⛪ Has Church / Prayer House', 2:'🏠 Has Believers', 3:'📋 No Believers Yet'}[d.cat];
+  if (!d) { document.getElementById('panel-body').innerHTML = '<p style="color:#999;font-size:13px;padding:8px 0">No church records for this country.</p>'; return; }
+  const catText = {1:'⛪ Has Church / Prayer House',2:'🏠 Has Believers',3:'📋 No Believers Yet'}[d.cat];
   document.getElementById('panel-body').innerHTML = `
     <div style="padding:4px 0 10px;font-size:12px;color:#c8922a;font-weight:600">${catText}</div>
     <div class="stat"><span>Services started</span><span>${d.year}</span></div>
-    <div class="stat"><span>Members</span><span>${d.members ? d.members.toLocaleString() : '—'}</span></div>
+    <div class="stat"><span>Members</span><span>${d.members?d.members.toLocaleString():'—'}</span></div>
     <div class="stat"><span>Churches</span><span>${d.churches||'—'}</span></div>
     <div class="stat"><span>Prayer Houses</span><span>${d.prayer||'—'}</span></div>
     <div class="stat"><span>Meeting Points</span><span>${d.worship||'—'}</span></div>
@@ -328,17 +355,21 @@ function showPanel(name, d) {
 }
 function closePanel() { document.getElementById('panel').style.display = 'none'; }
 
-// 渲染颜色选择圆点
-function renderColorOptions() {
-  const row = document.getElementById('color-row');
+function renderSwatches() {
+  const row = document.getElementById('swatch-row');
   row.innerHTML = '';
-  TENT_COLORS.forEach(c => {
-    const d = document.createElement('div');
-    d.className = 'color-opt' + (c === pendingColor ? ' sel' : '');
-    d.style.background = c;
-    d.onclick = () => { pendingColor = c; renderColorOptions(); };
-    row.appendChild(d);
+  SWATCHES.forEach(c => {
+    const s = document.createElement('div');
+    s.className = 'swatch' + (c.toLowerCase()===pendingColor.toLowerCase()?' sel':'');
+    s.style.background = c;
+    s.onclick = () => { pendingColor = c; document.getElementById('color-picker').value = c; renderSwatches(); renderTentPreview(); };
+    row.appendChild(s);
   });
+}
+function onPickColor(v) { pendingColor = v; renderSwatches(); renderTentPreview(); }
+function renderTentPreview() {
+  document.getElementById('tent-preview-box').innerHTML =
+    '<div style="text-align:center">' + tentSVG(pendingColor, 50) + '</div>';
 }
 
 function toggleTent() {
@@ -352,15 +383,15 @@ function toggleTent() {
 
 map.on('click', e => {
   if (!tentMode) return;
-  pendingLL = e.latlng;
-  pendingColor = '#e74c3c';
+  pendingLL = e.latlng; pendingColor = '#e07a3e';
   document.getElementById('form-overlay').classList.add('show');
   ['f-name','f-msg'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-img').value = '';
   document.getElementById('preview-img').style.display = 'none';
   document.getElementById('saving-msg').style.display = 'none';
+  document.getElementById('color-picker').value = '#e07a3e';
   pendingImg = null;
-  renderColorOptions();
+  renderSwatches(); renderTentPreview();
 });
 
 function closeForm() { document.getElementById('form-overlay').classList.remove('show'); pendingLL = null; }
@@ -389,36 +420,28 @@ async function saveTent() {
     lat: pendingLL.lat, lng: pendingLL.lng,
     name: document.getElementById('f-name').value.trim() || 'Anonymous Tentmaker',
     msg:  document.getElementById('f-msg').value.trim(),
-    color: pendingColor,
-    img:  pendingImg || null,
-    ts:   Date.now()
+    color: pendingColor, img: pendingImg || null, ts: Date.now()
   };
   document.getElementById('saving-msg').style.display = 'block';
   try {
     const ref = await window._addDoc(window._collection(window._db, 'tents'), pin);
     pin.id = ref.id;
-  } catch(e) { console.warn('Firebase save failed', e); }
+  } catch(e) { console.warn('Save failed', e); }
   addTentMarker(pin);
-  closeForm();
-  toggleTent();
+  closeForm(); toggleTent();
 }
 
-// 帐篷图标（颜色可变）
 function makeTentIcon(color) {
   return L.divIcon({
     className:'',
-    html:`<svg width="32" height="32" viewBox="0 0 24 24" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">
-            <path d="M12 3 L22 21 L2 21 Z" fill="${color}" stroke="#fff" stroke-width="1"/>
-            <path d="M12 9 L12 21" stroke="#fff" stroke-width="1.2"/>
-          </svg>`,
-    iconSize:[32,32], iconAnchor:[16,30], popupAnchor:[0,-30]
+    html: tentSVG(color || '#e07a3e', 34),
+    iconSize:[34,34], iconAnchor:[17,30], popupAnchor:[0,-28]
   });
 }
 
 window.addTentMarker = function(pin) {
   const date = new Date(pin.ts).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
-  const color = pin.color || '#e74c3c';
-  const marker = L.marker([pin.lat,pin.lng],{icon: makeTentIcon(color)}).addTo(map);
+  const marker = L.marker([pin.lat,pin.lng],{icon: makeTentIcon(pin.color)}).addTo(map);
   const delBtn = pin.id ? `<button class="tent-del-btn" onclick="deleteTent('${pin.id}')">🗑 Delete this tent</button>` : '';
   marker.bindPopup(`
     <b style="color:#1a4b7a;font-size:13px">${esc(pin.name)}</b><br>
@@ -427,16 +450,14 @@ window.addTentMarker = function(pin) {
     <span style="font-size:10px;color:#999">${date}</span>
     ${delBtn}
   `,{maxWidth:230});
-  marker._tentId = pin.id;
   window._tentMarkers = window._tentMarkers || {};
   if (pin.id) window._tentMarkers[pin.id] = marker;
 };
 
 window.deleteTent = async function(id) {
   if (!confirm('Delete this tent? This cannot be undone.')) return;
-  try {
-    await window._deleteDoc(window._doc(window._db, 'tents', id));
-  } catch(e) { console.warn('Delete failed', e); }
+  try { await window._deleteDoc(window._doc(window._db, 'tents', id)); }
+  catch(e) { console.warn('Delete failed', e); }
   const m = window._tentMarkers && window._tentMarkers[id];
   if (m) { map.removeLayer(m); delete window._tentMarkers[id]; }
 };
