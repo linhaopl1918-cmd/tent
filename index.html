@@ -69,6 +69,12 @@
     }
     .frow textarea { height: 70px; resize: none; }
     .frow input:focus, .frow textarea:focus { border-color: #c8922a; }
+    .color-row { display: flex; gap: 10px; margin-top: 4px; }
+    .color-opt {
+      width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+      border: 3px solid transparent; transition: all .15s;
+    }
+    .color-opt.sel { border-color: #333; transform: scale(1.15); }
     .upload-area {
       border: 2px dashed #ddd; border-radius: 8px; padding: 12px;
       text-align: center; cursor: pointer; font-size: 12px; color: #999;
@@ -86,6 +92,12 @@
       border-radius: 8px; padding: 10px 14px; font-size: 13px; cursor: pointer;
     }
     #saving-msg { text-align: center; font-size: 12px; color: #c8922a; margin-top: 8px; display: none; }
+    .tent-del-btn {
+      background: #fbeaea; color: #c0392b; border: 1px solid #e8c0c0;
+      border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer;
+      margin-top: 8px; width: 100%;
+    }
+    .tent-del-btn:hover { background: #f5d6d6; }
   </style>
 </head>
 <body>
@@ -95,9 +107,8 @@
 <div id="legend">
   <h3>Legend</h3>
   <div class="leg"><div class="dot" style="background:#2979a0"></div><span>Has Church / Prayer House</span></div>
-  <div class="leg"><div class="dot" style="background:#d4850a"></div><span>Believers / Meeting Point only</span></div>
-  <div class="leg"><div class="dot" style="background:#a8bcc8"></div><span>Recorded — no member data</span></div>
-  <div class="leg"><div class="dot" style="background:#ddd"></div><span>Not on record</span></div>
+  <div class="leg"><div class="dot" style="background:#d4850a"></div><span>Has Believers</span></div>
+  <div class="leg"><div class="dot" style="background:#a8bcc8"></div><span>No Believers Yet</span></div>
   <div class="leg"><span style="font-size:18px">⛺</span><span>Tentmaker</span></div>
 </div>
 
@@ -124,12 +135,12 @@
         <input id="f-name" type="text" placeholder="Your name">
       </div>
       <div class="frow">
-        <label>Occupation</label>
-        <input id="f-job" type="text" placeholder="e.g. Engineer, Teacher, Merchant…">
-      </div>
-      <div class="frow">
         <label>Your story or prayer</label>
         <textarea id="f-msg" placeholder="Share your testimony or prayer for this place…"></textarea>
+      </div>
+      <div class="frow">
+        <label>Tent color</label>
+        <div class="color-row" id="color-row"></div>
       </div>
       <div class="frow">
         <label>Photo (optional)</label>
@@ -150,7 +161,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs }
+  import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc }
     from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -168,12 +179,14 @@
   window._db         = db;
   window._addDoc     = addDoc;
   window._getDocs    = getDocs;
+  window._deleteDoc  = deleteDoc;
+  window._doc        = doc;
   window._collection = collection;
 
   window.addEventListener('mapReady', async () => {
     try {
       const snap = await getDocs(collection(db, 'tents'));
-      snap.forEach(doc => window.addTentMarker(doc.data()));
+      snap.forEach(d => window.addTentMarker({ id: d.id, ...d.data() }));
     } catch(e) { console.warn('Load tents failed', e); }
   });
 </script>
@@ -185,6 +198,7 @@ const DATA = {
   "Malaysia":                { year:1927, churches:113, prayer:28,  worship:19,  members:18328, baptisms:204, preachers:44,  cat:1 },
   "Singapore":               { year:1927, churches:4,   prayer:0,   worship:0,   members:1523,  baptisms:22,  preachers:4,   cat:1 },
   "Hong Kong S.A.R.":        { year:1929, churches:8,   prayer:0,   worship:0,   members:1566,  baptisms:4,   preachers:3,   cat:1 },
+  "Hong Kong":               { year:1929, churches:8,   prayer:0,   worship:0,   members:1566,  baptisms:4,   preachers:3,   cat:1 },
   "India":                   { year:1932, churches:17,  prayer:3,   worship:4,   members:1700,  baptisms:0,   preachers:5,   cat:1 },
   "Indonesia":               { year:1941, churches:29,  prayer:11,  worship:0,   members:6965,  baptisms:89,  preachers:19,  cat:1 },
   "Japan":                   { year:1946, churches:6,   prayer:1,   worship:0,   members:1222,  baptisms:24,  preachers:4,   cat:1 },
@@ -196,6 +210,7 @@ const DATA = {
   "Australia":               { year:1982, churches:7,   prayer:0,   worship:3,   members:1135,  baptisms:26,  preachers:1,   cat:1 },
   "New Zealand":             { year:1990, churches:3,   prayer:2,   worship:0,   members:549,   baptisms:12,  preachers:1,   cat:1 },
   "United States of America":{ year:1969, churches:26,  prayer:2,   worship:0,   members:4194,  baptisms:108, preachers:10,  cat:1 },
+  "United States":           { year:1969, churches:26,  prayer:2,   worship:0,   members:4194,  baptisms:108, preachers:10,  cat:1 },
   "Canada":                  { year:1971, churches:5,   prayer:2,   worship:0,   members:924,   baptisms:15,  preachers:4,   cat:1 },
   "Argentina":               { year:1989, churches:1,   prayer:0,   worship:0,   members:461,   baptisms:1,   preachers:0,   cat:1 },
   "Brazil":                  { year:1996, churches:0,   prayer:2,   worship:0,   members:60,    baptisms:3,   preachers:0,   cat:1 },
@@ -243,6 +258,7 @@ const DATA = {
   "Uganda":    { year:2000, churches:0, prayer:0, worship:0, members:0, cat:3 },
   "Togo":      { year:2001, churches:0, prayer:0, worship:0, members:0, cat:3 },
   "Tanzania":  { year:2005, churches:0, prayer:0, worship:0, members:0, cat:3 },
+  "United Republic of Tanzania": { year:2005, churches:0, prayer:0, worship:0, members:0, cat:3 },
   "Rwanda":    { year:2007, churches:0, prayer:0, worship:0, members:0, cat:3 },
   "Zambia":    { year:2008, churches:0, prayer:0, worship:0, members:0, cat:3 },
   "Ethiopia":  { year:2022, churches:0, prayer:0, worship:0, members:0, cat:3 },
@@ -250,18 +266,27 @@ const DATA = {
   "Cameroon":  { year:2022, churches:0, prayer:0, worship:0, members:0, cat:3 },
 };
 
+// 取国家名：兼容 name / ADMIN / NAME 各种字段
+function getName(feature) {
+  const p = feature.properties || {};
+  return p.name || p.ADMIN || p.NAME || p.admin || p.NAME_LONG || '';
+}
+
 const map = L.map('map').setView([20, 10], 2);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png').addTo(map);
 
 const COLORS = { 1:'#2979a0', 2:'#d4850a', 3:'#a8bcc8', 0:'#dddddd' };
-let geoLayer, tentMode = false, pendingLL = null, pendingImg = null;
+let geoLayer, tentMode = false, pendingLL = null, pendingImg = null, pendingColor = '#e74c3c';
 
-fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+// 帐篷颜色选项
+const TENT_COLORS = ['#e74c3c', '#2980b9', '#27ae60', '#c8922a', '#8e44ad'];
+
+fetch('https://raw.githubusercontent.com/datasets/geo-countries/main/data/countries.geojson')
   .then(r => r.json())
   .then(data => {
     geoLayer = L.geoJSON(data, {
       style(feature) {
-        const d = DATA[feature.properties.ADMIN || feature.properties.NAME];
+        const d = DATA[getName(feature)];
         const cat = d ? d.cat : 0;
         return { fillColor: COLORS[cat], fillOpacity: cat===1?.75:cat===2?.70:cat===3?.45:.20, color:'#fff', weight:.7 };
       },
@@ -271,7 +296,7 @@ fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/coun
           mouseout(e)  { if (!tentMode) geoLayer.resetStyle(e.target); },
           click(e) {
             if (tentMode) return;
-            const name = feature.properties.ADMIN || feature.properties.NAME;
+            const name = getName(feature);
             showPanel(name, DATA[name]);
             L.DomEvent.stopPropagation(e);
           }
@@ -290,7 +315,7 @@ function showPanel(name, d) {
     document.getElementById('panel-body').innerHTML = '<p style="color:#999;font-size:13px;padding:8px 0">No church records for this country.</p>';
     return;
   }
-  const catText = {1:'⛪ Has Church / Prayer House', 2:'🏠 Believers / Meeting Point only', 3:'📋 On record — no member data'}[d.cat];
+  const catText = {1:'⛪ Has Church / Prayer House', 2:'🏠 Has Believers', 3:'📋 No Believers Yet'}[d.cat];
   document.getElementById('panel-body').innerHTML = `
     <div style="padding:4px 0 10px;font-size:12px;color:#c8922a;font-weight:600">${catText}</div>
     <div class="stat"><span>Services started</span><span>${d.year}</span></div>
@@ -302,6 +327,19 @@ function showPanel(name, d) {
     <div class="stat"><span>Preachers</span><span>${d.preachers||'—'}</span></div>`;
 }
 function closePanel() { document.getElementById('panel').style.display = 'none'; }
+
+// 渲染颜色选择圆点
+function renderColorOptions() {
+  const row = document.getElementById('color-row');
+  row.innerHTML = '';
+  TENT_COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'color-opt' + (c === pendingColor ? ' sel' : '');
+    d.style.background = c;
+    d.onclick = () => { pendingColor = c; renderColorOptions(); };
+    row.appendChild(d);
+  });
+}
 
 function toggleTent() {
   tentMode = !tentMode;
@@ -315,12 +353,14 @@ function toggleTent() {
 map.on('click', e => {
   if (!tentMode) return;
   pendingLL = e.latlng;
+  pendingColor = '#e74c3c';
   document.getElementById('form-overlay').classList.add('show');
-  ['f-name','f-job','f-msg'].forEach(id => document.getElementById(id).value = '');
+  ['f-name','f-msg'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-img').value = '';
   document.getElementById('preview-img').style.display = 'none';
   document.getElementById('saving-msg').style.display = 'none';
   pendingImg = null;
+  renderColorOptions();
 });
 
 function closeForm() { document.getElementById('form-overlay').classList.remove('show'); pendingLL = null; }
@@ -348,36 +388,57 @@ async function saveTent() {
   const pin = {
     lat: pendingLL.lat, lng: pendingLL.lng,
     name: document.getElementById('f-name').value.trim() || 'Anonymous Tentmaker',
-    job:  document.getElementById('f-job').value.trim(),
     msg:  document.getElementById('f-msg').value.trim(),
+    color: pendingColor,
     img:  pendingImg || null,
     ts:   Date.now()
   };
   document.getElementById('saving-msg').style.display = 'block';
   try {
-    await window._addDoc(window._collection(window._db, 'tents'), pin);
+    const ref = await window._addDoc(window._collection(window._db, 'tents'), pin);
+    pin.id = ref.id;
   } catch(e) { console.warn('Firebase save failed', e); }
   addTentMarker(pin);
   closeForm();
   toggleTent();
 }
 
-const tentIcon = L.divIcon({
-  className:'',
-  html:'<div style="font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))">⛺</div>',
-  iconSize:[30,30], iconAnchor:[15,28], popupAnchor:[0,-30]
-});
+// 帐篷图标（颜色可变）
+function makeTentIcon(color) {
+  return L.divIcon({
+    className:'',
+    html:`<svg width="32" height="32" viewBox="0 0 24 24" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">
+            <path d="M12 3 L22 21 L2 21 Z" fill="${color}" stroke="#fff" stroke-width="1"/>
+            <path d="M12 9 L12 21" stroke="#fff" stroke-width="1.2"/>
+          </svg>`,
+    iconSize:[32,32], iconAnchor:[16,30], popupAnchor:[0,-30]
+  });
+}
 
 window.addTentMarker = function(pin) {
   const date = new Date(pin.ts).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
-  L.marker([pin.lat,pin.lng],{icon:tentIcon})
-    .bindPopup(`
-      <b style="color:#1a4b7a;font-size:13px">${esc(pin.name)}</b><br>
-      ${pin.job?`<span style="color:#c8922a;font-size:11px">${esc(pin.job)}</span><br>`:''}
-      ${pin.msg?`<p style="margin:6px 0;font-size:12px;line-height:1.5">${esc(pin.msg)}</p>`:''}
-      ${pin.img?`<img src="${pin.img}" style="width:100%;border-radius:6px;margin-top:4px">`:''}
-      <span style="font-size:10px;color:#999">${date}</span>
-    `,{maxWidth:230}).addTo(map);
+  const color = pin.color || '#e74c3c';
+  const marker = L.marker([pin.lat,pin.lng],{icon: makeTentIcon(color)}).addTo(map);
+  const delBtn = pin.id ? `<button class="tent-del-btn" onclick="deleteTent('${pin.id}')">🗑 Delete this tent</button>` : '';
+  marker.bindPopup(`
+    <b style="color:#1a4b7a;font-size:13px">${esc(pin.name)}</b><br>
+    ${pin.msg?`<p style="margin:6px 0;font-size:12px;line-height:1.5">${esc(pin.msg)}</p>`:''}
+    ${pin.img?`<img src="${pin.img}" style="width:100%;border-radius:6px;margin-top:4px">`:''}
+    <span style="font-size:10px;color:#999">${date}</span>
+    ${delBtn}
+  `,{maxWidth:230});
+  marker._tentId = pin.id;
+  window._tentMarkers = window._tentMarkers || {};
+  if (pin.id) window._tentMarkers[pin.id] = marker;
+};
+
+window.deleteTent = async function(id) {
+  if (!confirm('Delete this tent? This cannot be undone.')) return;
+  try {
+    await window._deleteDoc(window._doc(window._db, 'tents', id));
+  } catch(e) { console.warn('Delete failed', e); }
+  const m = window._tentMarkers && window._tentMarkers[id];
+  if (m) { map.removeLayer(m); delete window._tentMarkers[id]; }
 };
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
